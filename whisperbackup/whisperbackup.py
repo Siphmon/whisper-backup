@@ -37,6 +37,12 @@ try:
 except ImportError:
     snappy = None
 
+import sys
+if '--algorithm=sz' in sys.argv or '-a' in sys.argv and 'sz' in sys.argv:
+    if snappy is None:
+        print("Erreur : l'algorithme 'sz' (snappy) : python-snappy n'est pas installe.")
+        sys.exit(1)
+
 from fill import fill_archives
 from pycronscript import CronScript
 
@@ -117,9 +123,10 @@ def backup(script):
     data['complete'] = 0
     data['length'] = 0
 
-    def init(script):
+    def init(s):
         # The script object isn't pickle-able
-        globals()['script'] = script
+        global script
+        script = s
 
     def cb(result):
         # Do some progress tracking when jobs complete
@@ -155,7 +162,7 @@ def purge(script, localMetrics):
     # localMetrics must be a dict so we can do fast lookups
 
     if script.options.purge < 0:
-        log.debug("Purge is disabled, skipping")
+        logger.debug("Purge is disabled, skipping")
         return
 
     logger.info("Beginning purge operation.")
@@ -260,8 +267,9 @@ def backupWorker(k, p):
         elif script.options.algorithm == "sz":
             compressor = snappy.StreamCompressor()
             blobgz.write(compressor.compress(blob))
+
         else:
-            raise StandardError("Unknown compression format requested")
+            raise Exception("Unknown compression format requested")
 
     # Grab our timestamp and assemble final upstream key location
     logger.debug("Uploading payload as: %s/%s.wsp.%s" \
@@ -428,7 +436,7 @@ def restore(script):
             blob = compressor.decompress(blobgz.getvalue())
             try:
                 compressor.flush()
-            except UncompressError as e:
+            except snappy.UncompressError as e:
                 logger.error("Corrupt file in store: %s%s/%s.wsp.sz  Error %s" \
                         % (script.options.storage_path, i, d, str(e)))
                 continue
@@ -520,6 +528,7 @@ def main():
         sys.exit(1)
 
     mode = script.args[0].lower()
+    print(">>> VERSION PATCHEE DU CODE ACTIVE <<<")
     if mode == "backup":
         with script:
             # Use splay and lockfile settings
